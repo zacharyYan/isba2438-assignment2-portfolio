@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# runtime data
+/data
+
+# screen recordings & local commit message files
+/recordings
+*.mp4
+*.mov
+COMMIT_EDITMSG*
+.gitmessage
