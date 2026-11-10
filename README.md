@@ -1,96 +1,98 @@
-# Zhike Yan — 个人作品集 / Portfolio
+# Zhike Yan — Personal Portfolio
 
-Assignment 2 Part 1 的个人作品集网站，基于 Next.js 16（App Router）+ TypeScript + Tailwind CSS v4。
+A personal portfolio website built for **Assignment 2 Part 1**, using **Next.js 16 (App Router)**, **TypeScript**, and **Tailwind CSS v4**.
 
-**仅本地演示，没有公网部署。** 不包含 /api/contact、后台管理或部署配置（属 Part 2 范围）。
+**This project is a local demo only — there is no public deployment.** It intentionally excludes Part 2 scope: no `/api/contact`, no admin pages, no deployment configuration.
 
-## 环境与命令
+## Requirements & Commands
 
-要求 Node.js 20+（开发环境为 Node 24）。
+- **Node.js >= 20.9.0** (as required by the `next` package's `engines` field; development used Node 24)
+- All commands are run **from the project root directory** (the directory containing `package.json`):
 
 ```bash
-npm install         # 安装依赖
-npm run dev         # 开发服务器，http://localhost:3000
-npm run build       # 生产构建（含类型检查与静态生成）
-npm run start       # 运行生产构建，需先 build
-npm run lint        # ESLint 检查
+npm install         # Install dependencies
+npm run dev         # Dev server, http://localhost:3000
+npm run build       # Production build (includes type checking and static generation)
+npm run start       # Serve the production build (run `npm run build` first)
+npm run lint        # ESLint check
 ```
 
-## 中英文与路由重定向
+## Bilingual Routing & Redirects
 
-- 所有路由带语言前缀：`/zh`、`/en`，例如 `/zh/about-me`、`/en/projects/researchai`
-- `src/proxy.ts` 读取浏览器 `Accept-Language`：中文浏览器重定向到 `/zh/...`，其他到 `/en/...`
-- 不带前缀的旧路径（如 `/about-me`）自动重定向到带语言前缀的版本
-- 导航栏右侧按钮在当前路径上切换 `/zh ↔ /en`
-- `<html lang>` 与各页 metadata 随语言输出
+- All routes are prefixed by locale: `/zh` and `/en` — for example `/zh/about-me`, `/en/projects/researchai`
+- `src/proxy.ts` reads the browser's `Accept-Language` header: Chinese-language browsers are redirected to `/zh/...`, everything else to `/en/...`
+- Legacy paths without a prefix (e.g. `/about-me`) are redirected to the localized version automatically
+- The button in the navbar switches `/zh ↔ /en` while preserving the current path (only the locale prefix changes)
+- `<html lang>` and per-page metadata follow the active locale
 
-## 可演示的项目 slug
+## Demoable Project Slugs
 
-| 路径 | 说明 |
+| Path | Notes |
 |---|---|
-| `/zh/projects/bank-churn-prediction`（或 `/en/...`） | 详情页含 "GitHub 源码 / View source on GitHub" 按钮 |
-| `/zh/projects/amazon-review-nlp`（或 `/en/...`） | 同上 |
-| `/zh/projects/researchai` | 无已核实链接，显示"项目链接（待补充）"，不生成空链接 |
+| `/en/projects/bank-churn-prediction` (or `/zh/...`) | Detail page has a "View source on GitHub" button |
+| `/en/projects/amazon-review-nlp` (or `/zh/...`) | Same as above |
+| `/en/projects/researchai` | No verified URL yet; renders "Project link (to be added)" — no empty links are generated |
 
-未知 slug（如 `/zh/projects/xxx`）会渲染 `[lang]/projects/[slug]/not-found.tsx` 的未找到页面。注意 HTTP 状态码：在流式响应已开始的情况下可能是 **200（自动附带 `noindex`）** 而非 404，这是 Next.js Partial Prerendering 的文档化行为。
+An unknown slug (e.g. `/en/projects/xxx`) renders the not-found UI from `[lang]/projects/[slug]/not-found.tsx`. Note the HTTP status: when the streamed response has already started, the status may be **200 with a `noindex` meta tag** rather than a classic 404 — this is documented behavior of Next.js Partial Prerendering.
 
-## 表单 → Server Action → 验证 → JSON 的代码流程
+## Form → Server Action → Validation → JSON Flow
 
-1. `src/app/[lang]/contact-me-server-form/ContactForm.tsx`（客户端组件）用 `useActionState` 渲染表单：姓名、邮箱、留言三个字段，提交中禁用按钮显示"提交中…"。
-2. 提交进入 `actions.ts` 的 `submitContactForm`（文件顶部 `"use server"`，验证只在服务器执行）。
-3. `src/lib/contact-validation.ts` 校验：姓名/留言去除首尾空白后非空；邮箱只能有一个 @、@ 前非空、域名含点且每段非空、整体不含空白。返回错误键（如 `nameEmpty`），文案由词典渲染。
-4. 校验失败 → 返回 `validation-error` 状态与字段错误，**不触碰文件**，并保留用户已输入内容。
-5. 校验通过 → `src/lib/contact-store.ts` 的 `appendContactMessage` 读取-追加-重写 JSON 文件（模块内 promise 写队列串行化并发写入）。
-6. 读取/解析失败（JSON 损坏、内容非数组、权限错误）发生在写入之前 → action 捕获后返回 `save-error`，本次提交不会产生任何写入。存储模块只在文件不存在（ENOENT）时返回空数组。
-   **写入限制**：`fs.writeFile` 是非原子写入。上述机制只能保证"读取/解析失败时不进行后续写入"，**不能**保证磁盘写入中途断电/中断时原文件完整。写队列是模块级 promise，只在单个服务器进程内生效；多进程或多实例部署时并发写仍可能互相覆盖。
-7. 成功 → 返回 `success`，表单清空，页面显示成功提示。
+1. `src/app/[lang]/contact-me-server-form/ContactForm.tsx` (a Client Component) renders the form with `useActionState`: three labeled fields (name, email, message); while submitting, the button is disabled and shows "Submitting…".
+2. Submission enters `submitContactForm` in `actions.ts` (the file starts with `"use server"`, so validation always executes on the server).
+3. `src/lib/contact-validation.ts` validates: name/message must be non-empty after trimming; email must contain exactly one `@`, with a non-empty local part, a dot in the domain, non-empty dot-separated domain segments, and no whitespace anywhere. It returns **error keys** (e.g. `nameEmpty`); display text comes from the dictionaries.
+4. Validation failure → the action returns a `validation-error` state with per-field errors and the user's input preserved. **The file is never touched.**
+5. Validation success → `appendContactMessage` in `src/lib/contact-store.ts` performs read–append–rewrite of the JSON file. A module-level promise write queue serializes concurrent submissions **within a single server process**.
+6. Read/parse failure (corrupt JSON, non-array content, permission errors) happens **before any write** → the action catches it and returns `save-error`; that submission produces no write. The store returns an empty array **only** when the file does not exist (`ENOENT`).
 
-### JSON 位置与首次创建
+   **Write limitations**: `fs.writeFile` is not atomic. The mechanism above only guarantees "no write happens after a failed read/parse"; it **cannot** guarantee the original file stays intact if a disk write is interrupted mid-way. The write queue only works inside one server process — multi-process or multi-instance deployments can still overwrite each other.
+7. Success → a `success` state is returned, the form is cleared, and the page shows a success banner.
 
-- 文件：`<项目根>/data/contact-messages.json`，由 `process.cwd()` 定位
-- **首次有效提交时自动创建**（目录与文件都不预建）；无效提交不会创建文件
-- 每条记录含 `id`（UUID）、`name`、`email`、`message`、`submittedAt`（ISO 时间）
-- `/data` 已被 .gitignore 排除，留言不会进入版本库
+### JSON Location & First Creation
 
-### 本地文件存储的限制
+- File: `data/contact-messages.json` under the **project root**, located via `process.cwd()` of the running server process — start the app from the project root so the file lands where you expect
+- The file (and its directory) is **created automatically by the first valid submission**; invalid submissions never create it
+- Each record contains `id` (UUID), `name`, `email`, `message`, and `submittedAt` (ISO timestamp)
+- `/data` is excluded by `.gitignore`; messages never enter version control
 
-- 无数据库、无邮件发送：留言只落在本地 JSON 文件，仅本机可读
-- 文件无限增长，无清理机制；不设鉴权，不能上公网直接用
-- 路径依赖 `process.cwd()`，从其他目录启动 `npm run start` 会写到别处
-- `fs.writeFile` 非原子：磁盘写入中断可能损坏文件，本实现不做原子替换（如临时文件 + rename）
-- 写队列只在单进程内生效，不防多进程/多实例并发写
-- 若 JSON 被手工改坏，提交会显示"保存失败"（保护发生在读取/解析阶段，不执行写入）；手工修复为合法 JSON 数组后恢复写入
+### Local File Storage Limitations
 
-## 项目结构
+- No database, no email sending: messages live only in a local JSON file, readable on this machine
+- The file grows without limit and has no cleanup mechanism; there is no authentication, so this is not safe to expose publicly as-is
+- The storage path depends on the running process's `cwd` — starting the server from a different directory writes the file elsewhere
+- `fs.writeFile` is non-atomic: an interrupted write can corrupt the file (this implementation does not do atomic replace via temp-file + rename)
+- The write queue is effective only within a single process; it does not protect against concurrent writes from multiple processes/instances
+- If the JSON is corrupted by hand, submissions show "save failed" (the protection happens at the read/parse stage, before any write); fix the file back to a valid JSON array to resume writing
+
+## Project Structure
 
 ```
 src/
 ├── app/
-│   ├── [lang]/                  # 双语路由（zh / en）
-│   │   ├── layout.tsx           # 根布局：Navbar + Footer，generateStaticParams
-│   │   ├── page.tsx             # 首页：简介 + 精选作品
-│   │   ├── about-me/            # 关于我
+│   ├── [lang]/                  # Bilingual routes (zh / en)
+│   │   ├── layout.tsx           # Root layout: Navbar + Footer, generateStaticParams
+│   │   ├── page.tsx             # Home: intro + featured projects
+│   │   ├── about-me/            # About me
 │   │   ├── projects/
-│   │   │   ├── page.tsx         # 作品列表
-│   │   │   └── [slug]/          # 详情（generateStaticParams + notFound）
-│   │   ├── contact-me-server-form/  # 表单页 + actions.ts + form-state.ts
+│   │   │   ├── page.tsx         # Project list
+│   │   │   └── [slug]/          # Detail (generateStaticParams + notFound)
+│   │   ├── contact-me-server-form/  # Form page + actions.ts + form-state.ts
 │   │   └── not-found.tsx
 │   ├── favicon.ico
-│   └── globals.css              # Tailwind v4（@theme 定义在 CSS 内）
+│   └── globals.css              # Tailwind v4 (@theme is defined in CSS)
 ├── components/                  # Navbar / Footer / ProjectCard / LocaleToggle
-├── data/                        # profile.ts、projects.ts（双语内容数据）
-├── dictionaries/                # zh.ts / en.ts 词典
-├── lib/                         # i18n.ts、contact-validation.ts、contact-store.ts
-└── proxy.ts                     # 语言协商重定向
+├── data/                        # profile.ts, projects.ts (bilingual content data)
+├── dictionaries/                # zh.ts / en.ts dictionaries
+├── lib/                         # i18n.ts, contact-validation.ts, contact-store.ts
+└── proxy.ts                     # Language negotiation redirects
 ```
 
-## 相关文档
+## Related Documents
 
-- `docs/PROMPT_LOG.md` — 开发过程提示记录（摘要）
-- `docs/CODE_REVIEW.md` — 三个代码审查案例
-- `docs/RECORDING_CHECKLIST.md` — 演示视频录制提纲（尚未录制）
-- `docs/RECORDING_SCRIPT_EN.md` — 英文演示讲稿（参考稿，尚未录制）
+- [Prompt log (summary)](docs/PROMPT_LOG.md) — how this project was built, phase by phase
+- [Code review case studies](docs/CODE_REVIEW.md) — three real issues and how they were handled
+- [Recording checklist](docs/RECORDING_CHECKLIST.md) — pre-recording preparation and outline for the demo video (not yet recorded)
+- [Student reference script](docs/RECORDING_SCRIPT_EN.md) — Chinese step-by-step instructions + full English narration (not required reading for the instructor)
 
-## 许可
+## License
 
-MIT License，见 `LICENSE`。
+MIT License — see [LICENSE](LICENSE).

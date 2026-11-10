@@ -1,66 +1,78 @@
-# PROMPT_LOG — 开发提示记录（摘要）
+# PROMPT_LOG — Development Prompt Log (Summary)
 
-> **说明**：本文档是按会话实际历史整理的**摘要**，不是逐字引文。每个阶段列出主要提示意图与本阶段产出，供了解开发过程使用。不含伪造的用户原话、用户决定或历史提交记录。
+> **Note**: This document is a **summary** of the actual session history, not a verbatim transcript. Each phase lists the main prompt intent and the resulting output. It contains no fabricated user quotes, user decisions, or commit history.
 
-## 角色说明（诚实声明）
+## Roles (honest statement)
 
-- **实现与测试**：由 Viber（编程助手）完成——代码编写、命令执行、构建/lint/端到端检查及结果报告均来自助手，不是学生逐条手工执行。
-- **提示组织与复核**：ChatGPT 协助组织提示词与复核产出。
-- **学生职责**：核对代码与文档、理解并能讲解每一部分（演示视频由学生本人录制）。
+- **Implementation & testing**: done by **Viber** (the coding assistant) — code writing, command execution, build/lint/end-to-end checks, and result reporting all came from the assistant, not from the student running each command manually.
+- **Prompt organization & review**: **ChatGPT** helped organize the prompts and review outputs.
+- **Student's responsibility**: verify the code and documentation, understand every part well enough to explain it, and record the demo video personally.
 
-## 阶段记录
+## Phase log
 
-### 阶段 1：初始化
+### Phase 1 — Initialization
 
-- **提示意图**：检查环境与已有项目；如无项目先提出初始化方案；确认 Next.js 版本与路由方式；不实现页面。
-- **产出**：确认为空目录（Node 24）；确认方案 App Router + TypeScript + Tailwind + 本地数据、暂不部署；`create-next-app` 创建项目，Next.js **16.4.5**（Turbopack、Cache Components）；`next build` 通过。
+- **Prompt intent**: check the environment and existing project; if there is no project, propose an initialization plan first; confirm the Next.js version and routing approach; do not implement pages yet.
+- **Output**: confirmed an empty directory (Node 24 present); agreed on App Router + TypeScript + Tailwind + local data files, deployment deferred; created the project with `create-next-app` — **Next.js 16.4.5** (Turbopack, Cache Components); `next build` passed.
 
-### 阶段 2：页面骨架
+### Phase 2 — Page skeleton
 
-- **提示意图**：确定路由 `/about-me` 与 `/contact-me-server-form`；建立作品数据（含 slug 的类型 + 两条记录）、可复用导航栏/页脚/作品卡片、首页、作品列表与详情；两个有效 slug 内容不同、未知 slug 有清楚 404；个人资料不确定处标"待补充"，不编造。
-- **产出**：`src/data/`、`src/components/`、首页、`/about-me`、`/projects`、`/projects/[slug]`（`generateStaticParams` + `notFound`）、详情级 `not-found.tsx`；构建中发现 Next 16 禁止预渲染期调用 `new Date()`，按文档用 `"use cache"` 修复；build/lint/运行时验证通过（未知 slug 因 PPR 流式渲染返回 200 状态码但渲染 404 UI 并注入 noindex，属文档化行为）。
+- **Prompt intent**: fix the routes `/about-me` and `/contact-me-server-form`; build the project data (a typed record containing `slug` + two entries), reusable navbar/footer/project card, homepage, project list and detail pages; two valid slugs must show different content and an unknown slug a clear not-found page; uncertain personal facts must be marked "to be added" and experiences must not be invented.
+- **Output**: `src/data/`, `src/components/`, homepage, `/about-me`, `/projects`, `/projects/[slug]` (`generateStaticParams` + `notFound`), and a segment-level `not-found.tsx`. The build surfaced that Next 16 forbids calling `new Date()` during prerendering; fixed per the docs with `"use cache"`. Build/lint/runtime checks passed (an unknown slug returns HTTP 200 with `noindex` when the streamed response has started, while still rendering the 404 UI — documented PPR behavior).
 
-### 阶段 3：服务器表单
+### Phase 3 — Server form
 
-- **提示意图**：只实现 `/contact-me-server-form` 的服务器表单；先读本地表单与 Server Actions 文档；姓名/留言 trim 后非空；邮箱五条规则（单一 @、@ 前非空、域名含点、每段非空、无空白）；验证必须在服务器；有效提交追加保存 JSON 且不互相覆盖，无效提交不写文件；读写逻辑独立服务器模块；显示成功/字段错误/保存失败与等待状态；修复 ProjectCard 重复技术标签导致的 key 重复。
-- **产出**：`contact-validation.ts`（纯函数）、`contact-store.ts`（读-改-写 + promise 写队列）、`"use server"` action、`useActionState` 表单（pending/成功/验证错误/保存失败四种反馈）；ProjectCard 用 Set 去重。端到端用 React 渐进增强协议（SSR 暴露的 `$ACTION_*` 隐藏字段）真实 POST 验证：31 项检查全部通过（两次有效提交均保存、12 种无效提交文件逐字节不变、重启后记录仍在）。**未实现**（按指示）：`/api/contact`、`/admin`。
+- **Prompt intent**: implement only the `/contact-me-server-form` server form; read the local Next.js forms and Server Actions docs first; name/message non-empty after trimming; email must satisfy five rules (exactly one `@`, non-empty local part, a dot in the domain, non-empty dot-separated segments, no whitespace); validation must run on the server; valid submissions are appended to a JSON file without overwriting each other, invalid submissions write nothing; read/write logic lives in a separate server module; the page shows success, per-field errors, save failure, and a waiting state; also fix ProjectCard duplicate tech-stack keys.
+- **Output**: `contact-validation.ts` (pure function), `contact-store.ts` (read–modify–write with a promise write queue), a `"use server"` action, and a `useActionState` form (pending / success / validation-error / save-error feedback); ProjectCard dedupes tags with a `Set`. End-to-end verification used React's progressive-enhancement protocol (the `$ACTION_*` hidden fields exposed by SSR) to POST real requests: **31 checks passed** (two consecutive valid submissions both saved, 12 invalid submissions left the file byte-for-byte unchanged, records survived a server restart). **Explicitly not implemented (as instructed)**: `/api/contact` and `/admin`.
 
-### 阶段 4：保存失败加固
+### Phase 4 — Save-failure hardening
 
-- **提示意图**：审查 `contact-store.ts`——仅文件不存在时返回空数组；JSON 损坏或读取失败须显示保存失败并保留原文件；用独立测试文件验证，不破坏已有留言。
-- **产出**：修复读取逻辑（仅 ENOENT 返回 `[]`，损坏/非数组/权限错误一律抛错）；Node 直跑单测 **17/17**（在临时目录运行，含 EACCES、写队列未被毒化）；临时目录 + 损坏文件的端到端验证：真实服务器返回 save-error、损坏文件逐字节保留。
-- **事故披露**：第一轮单测误在项目目录运行，覆盖了真实留言文件；已从本会话已验证输出中逐字节恢复两条已知记录；若当时存在用户自行提交的留言则无法恢复（无系统快照）。测试脚本随后加了工作目录安全锁。
+- **Prompt intent**: review `contact-store.ts` — return an empty array only when the file does not exist; corrupt JSON or read failure must surface a save failure while preserving the original file; verify with a separate test file without destroying existing messages.
+- **Output**: fixed the read logic (only `ENOENT` returns `[]`; corrupt/non-array/permission errors are thrown); Node-run unit tests **17/17** (executed in an isolated temp directory, covering `EACCES` and write-queue recovery); an end-to-end check with a corrupted file in a temp-cwd server confirmed a real `save-error` response and the corrupt file preserved byte-for-byte.
+- **Incident disclosure**: the first unit-test run mistakenly executed inside the project directory and overwrote the real messages file; the two known records were restored byte-for-byte from session-verified output, and the incident was disclosed. Any messages the user might have submitted themselves at the time would have been unrecoverable (no system snapshots). A working-directory guard was then added to the test script.
 
-### 阶段 5：真实内容
+### Phase 5 — Real content
 
-- **提示意图**：按学生简历替换个人资料与项目内容。
-- **产出**：`profile.ts`（SCU 商业分析硕士、本科、两段实习、三组技能、语言/摄影）与 `projects.ts`（ResearchAI、Bank Churn、Financial Marketing、Amazon NLP、Manufacturing Cost 共 5 个项目，文案源自简历）；精选=ResearchAI+Bank Churn；曾就电话号码位数与 ResearchAI 链接缺失向学生提问确认。
+- **Prompt intent**: replace the placeholder profile and project data with the student's real résumé content.
+- **Output**: `profile.ts` (SCU MSBA, prior degree, two internships, three skill groups, languages/photography) and `projects.ts` (five projects: ResearchAI, Bank Churn, Financial Marketing, Amazon NLP, Manufacturing Cost — copy drawn from the résumé); featured = ResearchAI + Bank Churn; the assistant raised two questions back to the student (phone digit count; ResearchAI links missing).
 
-### 阶段 6：中英文切换
+### Phase 6 — Chinese/English toggle
 
-- **提示意图**：添加中英文切换按钮。
-- **产出**：按 Next.js 16 官方 i18n 指南重构为 `src/app/[lang]/` 双语路由；`src/proxy.ts`（Next 16 中 middleware 更名 proxy）按 `Accept-Language` 重定向，旧路径自动跳转；`src/dictionaries/` 双语词典；数据文件改为 `{ zh, en }` 本地化字段；验证改为返回错误键、由词典渲染；导航栏 `LocaleToggle` 按当前路径切换。
-- **构建问题与修复**：词典类型循环引用（`Dictionary` 类型移至 `zh.ts`）；词典内函数无法传给客户端组件（改为 `{n}` 占位符）；Footer 重写时丢失 `"use cache"` 年份修复（补回）。build/lint 通过；语言协商、双语内容、双语 404、双语言表单反馈均实测通过。
+- **Prompt intent**: add a language toggle button.
+- **Output**: restructured to `src/app/[lang]/` bilingual routes per the official Next.js 16 i18n guide; `src/proxy.ts` (middleware was renamed to proxy in Next 16) redirects based on `Accept-Language`, with legacy paths redirected; `src/dictionaries/` bilingual dictionaries; data files became `{ zh, en }` localized fields; validation now returns error keys rendered by the dictionaries; a navbar `LocaleToggle` switches while preserving the path.
+- **Build issues and fixes**: a circular dictionary type (`Dictionary` moved into `zh.ts`); a function in the dictionary could not cross to a Client Component (replaced with a `{n}` placeholder); the Footer rewrite had dropped the `"use cache"` year fix (restored). Build/lint passed; language negotiation, bilingual content, bilingual 404s, and bilingual form feedback all verified at runtime.
 
-### 阶段 7：项目链接
+### Phase 7 — Project links
 
-- **提示意图**：填入两个已核实的 GitHub 仓库；明确区分"GitHub 源码"与"在线演示"；未核实 URL 不猜测、不生成空链接；社交链接加入 GitHub 主页；外链新标签打开并带 rel。
-- **产出**：`Project.link` 重构为 `links?: { kind: "source" | "demo"; url: string }[]`；两个仓库以 source 类型填入，词典提供双语标签；ResearchAI 保持"待补充"；`profile.links` 加入 GitHub；build/lint/运行时验证通过。
+- **Prompt intent**: fill in two verified GitHub repositories; clearly distinguish "GitHub source" from "live demo"; do not guess unverified URLs and do not render empty/`#` links; add the confirmed GitHub profile to the public social links; external links open in a new tab with a proper `rel`.
+- **Output**: `Project.link` refactored to `links?: { kind: "source" | "demo"; url: string }[]`; the two repositories were filled in as `source` links with dictionary-provided labels in both languages; ResearchAI stays "to be added"; `profile.links` gained the GitHub profile; build/lint/runtime checks passed.
 
-### 阶段 8：发布前收尾（本轮）
+### Phase 8 — Pre-publication wrap-up
 
-- **提示意图**：移除公开版本手机号；重写 README；加 MIT LICENSE；补 `docs/`（提示记录、代码审查、录制提纲）；完善 .gitignore；最终 build/lint 与页面核对；保持 3000 预览。
-- **产出**：`profile.phone` 设为 `null`；重写 README；新增 LICENSE 与三份 docs；.gitignore 增加录屏与本地提交信息规则（实测 `package-lock.json` 保持入库）。
-- **本轮实际验证**（由 Viber 执行）：`npm run build` 通过（zh/en 全路由静态生成）、`npm run lint` 0 错 0 警；curl 核对 11 个页面路径均为 200、`/zh/projects/xxx` 为 404；全仓库检索确认无手机号痕迹（README/docs/LICENSE/src）；`data/contact-messages.json` 保持 2 条记录、字段完整。
-- **验证边界**：本轮**没有新增表单端到端测试写入**（表单链路未改动）；表单相关的历史检查结果（两轮共 31 + 6 项）是引用阶段 3/4 的会话内验证记录，本轮未重跑；本文件依据会话对话记录整理，不存在独立的日志文件来源。
+- **Prompt intent**: remove the phone number from the public version; rewrite the README; add an MIT LICENSE; add `docs/` (prompt log, code review, recording checklist); improve `.gitignore`; final build/lint and page checks; keep the port-3000 preview.
+- **Output**: `profile.phone` set to `null`; README rewritten; LICENSE and three docs added; `.gitignore` extended for recordings and local commit-message files (verified `package-lock.json` stays tracked).
+- **Verification in this round (run by Viber)**: `npm run build` passed (all zh/en routes statically generated), `npm run lint` clean; curl checks confirmed 11 page paths at 200 and `/zh/projects/xxx` at 404; a repository-wide search confirmed no phone-number traces (README/docs/LICENSE/src); `data/contact-messages.json` kept its 2 records with intact fields.
+- **Verification boundary**: no new form end-to-end test writes were added this round (the form path was unchanged); the historical form checks (31 + 6 across two rounds) are cited from the Phase 3/4 in-session records, not re-run. This log is based on the session transcript; no separate log files exist.
+- **Doc corrections after review**: the README was corrected on the limits of write-failure protection (non-atomic writes; single-process queue) and on the unknown-slug HTTP status wording; CODE_REVIEW's repository attribution was corrected (ChatGPT verified via GitHub CLI); the recording checklist was refined.
 
-### 阶段 8 补充：发布前复核修正
+### Phase 9 — GitHub publication
 
-- **提示意图**：复核后修正文档表述——写失败保护的能力边界（非原子写入、写队列仅单进程）、未知 slug 的 HTTP 状态码表述、仓库核实方式（ChatGPT 经 GitHub CLI 核实）、录制提纲细节。
-- **产出**：README 两处准确化（写入非原子限制、流式下可能 200+noindex）；CODE_REVIEW 案例三的核实方式改为如实归属；录制提纲修正（见该文件）；新增 `docs/RECORDING_SCRIPT_EN.md`（英文讲稿参考）。本轮只改文档，未重新构建。
+- **Prompt intent**: confirm the GitHub CLI account; create the public repository if it does not exist; set a repo-local commit identity; review staged content for secrets before committing; push; verify the remote SHA; write a local submission-info file.
+- **Actual output**: the GitHub CLI reported no login inside the assistant's session because the environment injected `XDG_CONFIG_HOME` pointing at a different config directory; running `gh` with that variable unset resolved the login as **zacharyYan** (keyring auth; no credentials were copied or changed). The repo `zacharyYan/isba2438-assignment2-portfolio` did not exist and was created **public**; a single wrap-up commit on top of the genuine Create-Next-App initial commit was pushed to `main`, and local/remote full SHAs were verified identical. Repo-local git identity: `Zhike Yan <232455304+zacharyYan@users.noreply.github.com>` (global config untouched). `recordings/SUBMISSION_INFO.txt` was written locally (gitignored, contains the commit SHA).
+- **Verification in this round (run by Viber)**: staged-content grep found no phone number (626/5959/9788), no "HackerSquad", no token material; `data/`, `.env`, `.next`, and `recordings/` confirmed ignored; local HEAD equals the remote `main` SHA (40 characters).
 
-## 截至发布前准备阶段结束时未发生的事（防误解）
+### Phase 10 — Documentation English revision (this round)
 
-- **截至本文件更新时**（发布前准备阶段结束）：未执行过任何 `git commit` / `git push`，未创建远程仓库，未部署。此后若学生进行 GitHub 发布，以实际操作为准，与本文件无矛盾。
-- 未实现 Part 2 功能（`/api/contact`、`/admin`、部署）。
-- 演示视频尚未录制。
+- **Prompt intent**: the instructor primarily reads English — translate README, PROMPT_LOG, and CODE_REVIEW into English; translate RECORDING_CHECKLIST as well while RECORDING_SCRIPT_EN stays a student reference (Chinese instructions + English script); keep the Phase 8 time boundary and add the real publication record; fix README statements about the working directory and the Node minimum version (taken from the `next` package's `engines` field).
+- **Output**: the four instructor-facing documents in English; documentation-only changes — no website code, functionality, data, or video changes; no rebuild/lint re-run.
+- **Status**: the student's code review, the demo recording, and any platform submission have **not** happened yet.
+
+## Things that have not happened (as of this update)
+
+- The demo video has **not** been recorded and has **not** been submitted to any platform.
+- The student has not performed a formal code review sign-off; review documents here were produced with the assistant and remain the student's responsibility to verify.
+- No email has been sent, and no content has been submitted to any course platform.
+
+## Historical boundary (kept for accuracy)
+
+At the end of Phase 8 (the pre-publication preparation phase), nothing had been committed, pushed, or deployed, and no remote repository existed. Phase 9 records the actual publication; the two statements are time-scoped and not in conflict.
