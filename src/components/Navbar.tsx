@@ -1,12 +1,14 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import LocaleToggle from "./LocaleToggle";
 import { getDictionary, type Locale } from "@/lib/i18n";
 
 const navItems = [
   { href: "", key: "home" },
   { href: "/projects", key: "projects" },
+  { href: "/blogs", key: "blog" },
   { href: "/about-me", key: "about" },
-  { href: "/contact-me-server-form", key: "contact" },
+  { href: "/contact-me", key: "contact" },
 ] as const;
 
 export default function Navbar({ lang }: { lang: Locale }) {
@@ -34,7 +36,9 @@ export default function Navbar({ lang }: { lang: Locale }) {
               </li>
             ))}
           </ul>
-          <LocaleToggle lang={lang} />
+          <Suspense fallback={null}>
+            <LocaleToggle lang={lang} />
+          </Suspense>
         </div>
       </nav>
     </header>

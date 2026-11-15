@@ -33,7 +33,7 @@ export default function Footer({ lang }: { lang: Locale }) {
           </ul>
         ) : null}
         <Link
-          href={`/${lang}/contact-me-server-form`}
+          href={`/${lang}/contact-me`}
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-50"
         >
           {dict.footer.contactMe}

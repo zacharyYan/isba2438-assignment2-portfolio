@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { enqueueJsonWrite } from "./json-write-queue";
 
 export type ContactMessage = {
   id: string;
@@ -12,8 +13,6 @@ export type ContactMessage = {
 
 const storageDir = path.join(process.cwd(), "data");
 const storageFile = path.join(storageDir, "contact-messages.json");
-
-let writeQueue: Promise<unknown> = Promise.resolve();
 
 export async function readContactMessages(): Promise<ContactMessage[]> {
   let raw: string;
@@ -48,9 +47,7 @@ export function appendContactMessage(input: {
   email: string;
   message: string;
 }): Promise<ContactMessage> {
-  const task = writeQueue.then(() => doAppend(input));
-  writeQueue = task.catch(() => undefined);
-  return task;
+  return enqueueJsonWrite(() => doAppend(input));
 }
 
 async function doAppend(input: {

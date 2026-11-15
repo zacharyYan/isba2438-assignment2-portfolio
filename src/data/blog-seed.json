@@ -1,0 +1,18 @@
+[
+  {
+    "id": "a2c1f6a0-1111-4b6e-9f01-3f5a8f9e0001",
+    "slug": "sample-hello-blog",
+    "title": "Sample: Hello, Blog",
+    "summary": "Sample content created for demonstration. Replace it with your own posts via the admin page.",
+    "body": "This is a sample post shipped with the seed file so a fresh checkout has something to show.\n\nThe list page reads GET /api/blogs, and this detail page renders the stored JSON directly. Use /admin/blogs to publish a real post, then confirm it shows up here.",
+    "createdAt": "2026-11-14T00:00:00.000Z"
+  },
+  {
+    "id": "a2c1f6a0-2222-4b6e-9f01-3f5a8f9e0002",
+    "slug": "sample-ni-hao-bo-ke",
+    "title": "示例：你好，博客",
+    "summary": "用于演示的示例内容。你可以在管理页面发布自己的文章来替换它。",
+    "body": "这是随种子文件提供的示例文章，保证全新检出也能看到内容。\n\n列表页通过 GET /api/blogs 读取文章，详情页直接渲染存储的 JSON。使用 /admin/blogs 发布一篇真实文章，然后回到这里确认它已出现。",
+    "createdAt": "2026-11-13T00:00:00.000Z"
+  }
+]

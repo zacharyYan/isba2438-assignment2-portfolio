@@ -1,8 +1,11 @@
 # Zhike Yan — Personal Portfolio
 
-A personal portfolio website built for **Assignment 2 Part 1**, using **Next.js 16 (App Router)**, **TypeScript**, and **Tailwind CSS v4**.
+A personal portfolio website built for **Assignment 2**, using **Next.js 16 (App Router)**, **TypeScript**, and **Tailwind CSS v4**.
 
-**This project is a local demo only — there is no public deployment.** It intentionally excludes Part 2 scope: no `/api/contact`, no admin pages, no deployment configuration.
+- **Part 1** (routes, projects, Server Action form, bilingual UI) is the committed historical version at [commit `233736ac481141eb0384c19db698744c55951772`](https://github.com/zacharyYan/isba2438-assignment2-portfolio/tree/233736ac481141eb0384c19db698744c55951772).
+- **Part 2** (API contact form, blog management/list/detail) is developed on the `codex/assignment2-part2` branch on top of that commit. This version includes Part 2; historical development checkpoints were not committed at the time they were produced.
+
+**This project is a local demo only — there is no public deployment and no authentication.** Part 2 has no `/admin` login or rate limiting; it is meant to be run on a local machine for the course demo.
 
 ## Requirements & Commands
 
@@ -10,88 +13,107 @@ A personal portfolio website built for **Assignment 2 Part 1**, using **Next.js 
 - All commands are run **from the project root directory** (the directory containing `package.json`):
 
 ```bash
-npm install         # Install dependencies
+npm ci              # Clean-install dependencies
+npm run seed:blogs  # First time only: create data/blogs.json from the committed samples
 npm run dev         # Dev server, http://localhost:3000
 npm run build       # Production build (includes type checking and static generation)
 npm run start       # Serve the production build (run `npm run build` first)
 npm run lint        # ESLint check
 ```
 
-## Bilingual Routing & Redirects
+`npm run seed:blogs` **refuses to overwrite any existing `data/blogs.json`** (valid, corrupt, or otherwise — the file is created exclusively). Delete the file by hand if you truly want to re-initialize.
 
-- All routes are prefixed by locale: `/zh` and `/en` — for example `/zh/about-me`, `/en/projects/researchai`
-- `src/proxy.ts` reads the browser's `Accept-Language` header: Chinese-language browsers are redirected to `/zh/...`, everything else to `/en/...`
-- Legacy paths without a prefix (e.g. `/about-me`) are redirected to the localized version automatically
-- The button in the navbar switches `/zh ↔ /en` while preserving the current path (only the locale prefix changes)
-- `<html lang>` and per-page metadata follow the active locale
-
-## Demoable Project Slugs
+## Part 2 Routes & API
 
 | Path | Notes |
 |---|---|
-| `/en/projects/bank-churn-prediction` (or `/zh/...`) | Detail page has a "View source on GitHub" button |
-| `/en/projects/amazon-review-nlp` (or `/zh/...`) | Same as above |
-| `/en/projects/researchai` | No verified URL yet; renders "Project link (to be added)" — no empty links are generated |
+| `/en/contact-me` (or `/zh/...`) | API-powered contact form; the navbar Contact link points here; the page links back to the original Server Action form |
+| `/en/blogs` (or `/zh/...`) | Blog list; a Client Component really fetches `GET /api/blogs`, with loading / empty / failure-and-retry states; links to the admin page |
+| `/en/blogs/[slug]` (or `/zh/...`) | Post detail rendered from the actual JSON at request time (inside a Suspense boundary per the Cache Components guide); unknown slugs get a friendly not-found page |
+| `/en/admin/blogs` (or `/zh/...`) | Create-a-post form that POSTs to `/api/blogs`; inputs are disabled while submitting; success clears the form and links to the new post |
+| `/en/blog-posts` (or `/zh/...`) | Thin redirect to `/[lang]/blogs` (the assignment mentions both names) |
+| `POST /api/contact` | JSON body `{ name, email, message }` → `201` / `400` (invalid JSON, non-object, non-string fields, or field validation with per-field error keys) / `500` (storage failure). No `GET` — contact data is not exposed |
+| `POST /api/contacts` | Thin alias re-exporting the same handler from `/api/contact` (the assignment uses both singular and plural); zero duplicated logic |
+| `GET /api/blogs` | `200` `{ status: "success", posts }`, newest first; `500` `storage-error` if the store is unreadable |
+| `POST /api/blogs` | JSON body `{ title, slug, body, summary? }` → `201` + the created post / `400` (invalid JSON, non-object, non-string fields incl. `summary`, or field validation) / `409` duplicate slug / `500` (storage failure) |
 
-An unknown slug (e.g. `/en/projects/xxx`) renders the not-found UI from `[lang]/projects/[slug]/not-found.tsx`. Note the HTTP status: when the streamed response has already started, the status may be **200 with a `noindex` meta tag** rather than a classic 404 — this is documented behavior of Next.js Partial Prerendering.
+Validation is strict: `title`, `slug`, `body` are required non-empty strings; `slug` must match `^[a-z0-9]+(-[a-z0-9]+)*$`; `summary` is optional but, if present, must be a string. Error responses contain status codes and machine-readable error keys only — no file paths or stack traces.
 
-## Form → Server Action → Validation → JSON Flow
+The language proxy (`src/proxy.ts`) excludes `/api` from its matcher, so API calls are never redirected by locale negotiation.
 
-1. `src/app/[lang]/contact-me-server-form/ContactForm.tsx` (a Client Component) renders the form with `useActionState`: three labeled fields (name, email, message); while submitting, the button is disabled and shows "Submitting…".
-2. Submission enters `submitContactForm` in `actions.ts` (the file starts with `"use server"`, so validation always executes on the server).
-3. `src/lib/contact-validation.ts` validates: name/message must be non-empty after trimming; email must contain exactly one `@`, with a non-empty local part, a dot in the domain, non-empty dot-separated domain segments, and no whitespace anywhere. It returns **error keys** (e.g. `nameEmpty`); display text comes from the dictionaries.
-4. Validation failure → the action returns a `validation-error` state with per-field errors and the user's input preserved. **The file is never touched.**
-5. Validation success → `appendContactMessage` in `src/lib/contact-store.ts` performs read–append–rewrite of the JSON file. A module-level promise write queue serializes concurrent submissions **within a single server process**.
-6. Read/parse failure (corrupt JSON, non-array content, permission errors) happens **before any write** → the action catches it and returns `save-error`; that submission produces no write. The store returns an empty array **only** when the file does not exist (`ENOENT`).
+## Shared Storage Design
 
-   **Write limitations**: `fs.writeFile` is not atomic. The mechanism above only guarantees "no write happens after a failed read/parse"; it **cannot** guarantee the original file stays intact if a disk write is interrupted mid-way. The write queue only works inside one server process — multi-process or multi-instance deployments can still overwrite each other.
-7. Success → a `success` state is returned, the form is cleared, and the page shows a success banner.
+Both features write plain JSON files under `data/` in the project root (located via the running process's `cwd` — start the app from the project root):
 
-### JSON Location & First Creation
+- `data/contact-messages.json` — contact submissions, shared by the Part 1 Server Action and the Part 2 API (identical validation and store functions)
+- `data/blogs.json` — blog posts; created by the first valid `POST /api/blogs` or by `npm run seed:blogs`
 
-- File: `data/contact-messages.json` under the **project root**, located via `process.cwd()` of the running server process — start the app from the project root so the file lands where you expect
-- The file (and its directory) is **created automatically by the first valid submission**; invalid submissions never create it
-- Each record contains `id` (UUID), `name`, `email`, `message`, and `submittedAt` (ISO timestamp)
-- `/data` is excluded by `.gitignore`; messages never enter version control
+Both stores follow the same guards:
+
+- Only a missing file (`ENOENT`) reads as an empty list; every other read/parse/validation error is thrown **before any write**, so a corrupt file is never silently overwritten (the failing submission produces no write)
+- Blog records are shape-validated on read (`id`/`slug`/`title`/`summary`/`body`/`createdAt` strings with sensible non-empty/parseable values); a malformed record surfaces as a controlled storage error instead of crashing list sorting or detail rendering
+- The duplicate-slug check and the append run inside **one process-wide write queue** (kept on `globalThis`, shared by both stores via `src/lib/json-write-queue.ts`), so concurrent creates cannot interleave read-modify-write cycles
+- Each record: contact `{ id, name, email, message, submittedAt }`; blog `{ id, slug, title, summary, body, createdAt }`
 
 ### Local File Storage Limitations
 
-- No database, no email sending: messages live only in a local JSON file, readable on this machine
-- The file grows without limit and has no cleanup mechanism; there is no authentication, so this is not safe to expose publicly as-is
-- The storage path depends on the running process's `cwd` — starting the server from a different directory writes the file elsewhere
-- `fs.writeFile` is non-atomic: an interrupted write can corrupt the file (this implementation does not do atomic replace via temp-file + rename)
-- The write queue is effective only within a single process; it does not protect against concurrent writes from multiple processes/instances
-- If the JSON is corrupted by hand, submissions show "save failed" (the protection happens at the read/parse stage, before any write); fix the file back to a valid JSON array to resume writing
+- No database, no email sending: everything lives in local JSON files on one machine; `/data` is gitignored
+- `fs.writeFile` is **not atomic**; the guards above prevent "write after failed read" but cannot rule out a corrupted file if a write is interrupted mid-way
+- The write queue is effective within a **single Node process only**; multi-process or multi-instance setups can still conflict
+- No authentication on `/admin/blogs` or `POST /api/blogs` — local demo scope; do not expose publicly as-is
+- Storage paths depend on the running process's `cwd`
 
-## Project Structure
+## Part 1 Routes (historical version `233736a`)
+
+- Bilingual routes `/zh` and `/en` with `Accept-Language` negotiation in `src/proxy.ts` and legacy-path redirects; the navbar toggle switches locale while preserving the path
+- `/[lang]/projects` and `/[lang]/projects/[slug]` (static params + friendly not-found; an unknown slug may return HTTP 200 with a `noindex` meta when the streamed response has started — documented PPR behavior)
+- `/[lang]/about-me`, home with featured projects
+- `/[lang]/contact-me-server-form` — the original Server Action form (still linked from the API form page)
+
+## Project Structure (Part 2 additions)
 
 ```
 src/
 ├── app/
-│   ├── [lang]/                  # Bilingual routes (zh / en)
-│   │   ├── layout.tsx           # Root layout: Navbar + Footer, generateStaticParams
-│   │   ├── page.tsx             # Home: intro + featured projects
-│   │   ├── about-me/            # About me
-│   │   ├── projects/
-│   │   │   ├── page.tsx         # Project list
-│   │   │   └── [slug]/          # Detail (generateStaticParams + notFound)
-│   │   ├── contact-me-server-form/  # Form page + actions.ts + form-state.ts
-│   │   └── not-found.tsx
-│   ├── favicon.ico
-│   └── globals.css              # Tailwind v4 (@theme is defined in CSS)
-├── components/                  # Navbar / Footer / ProjectCard / LocaleToggle
-├── data/                        # profile.ts, projects.ts (bilingual content data)
-├── dictionaries/                # zh.ts / en.ts dictionaries
-├── lib/                         # i18n.ts, contact-validation.ts, contact-store.ts
-└── proxy.ts                     # Language negotiation redirects
+│   ├── api/
+│   │   ├── contact/route.ts        # POST only (alias: /api/contacts)
+│   │   └── blogs/route.ts          # GET list + POST create
+│   └── [lang]/
+│       ├── contact-me/             # API contact form (+ link to server-form page)
+│       ├── blogs/
+│       │   ├── page.tsx            # List shell + client BlogList (fetch /api/blogs)
+│       │   └── [slug]/             # Detail (Suspense-wrapped runtime read) + not-found
+│       ├── admin/blogs/            # Create-post form (POST /api/blogs)
+│       └── blog-posts/             # Thin redirect to /blogs
+├── components/                     # Navbar (Blogs link) / Footer (contact → API page) / ...
+├── data/
+│   ├── projects.ts, profile.ts     # Part 1 content
+│   └── blog-seed.json              # Committed sample posts (seed source)
+├── dictionaries/                   # zh / en (blog + contact API strings)
+├── lib/
+│   ├── json-write-queue.ts         # Process-wide serialized write queue
+│   ├── contact-{validation,request,store}.ts
+│   ├── blog-{validation,request,store}.ts
+│   └── i18n.ts
+└── proxy.ts                        # Language negotiation (excludes /api)
+scripts/seed-blogs.mjs              # Exclusive-create seed script
 ```
 
 ## Related Documents
 
-- [Prompt log (summary)](docs/PROMPT_LOG.md) — how this project was built, phase by phase
+Part 1 (frozen):
+
+- [Prompt log (summary)](docs/PROMPT_LOG.md) — how Part 1 was built, phase by phase
 - [Code review case studies](docs/CODE_REVIEW.md) — three real issues and how they were handled
-- [Recording checklist](docs/RECORDING_CHECKLIST.md) — pre-recording preparation and outline for the demo video (not yet recorded)
+- [Recording checklist](docs/RECORDING_CHECKLIST.md) — pre-recording preparation and outline for the demo video
 - [Student reference script](docs/RECORDING_SCRIPT_EN.md) — Chinese step-by-step instructions + full English narration (not required reading for the instructor)
+
+Part 2 (this branch):
+
+- [Part 2 prompt log](docs/PART2_PROMPT_LOG.md) — real increments and decisions
+- [Part 2 code review](docs/PART2_CODE_REVIEW.md) — three real cases (shared write queue, Suspense rendering, exclusive seed)
+- [Part 2 test results](docs/PART2_TEST_RESULTS.md) — what was actually tested and what was not
+- [Part 2 recording guide](docs/PART2_RECORDING_GUIDE.md) — Chinese steps + full English narration for the blog/API demo
 
 ## License
 
