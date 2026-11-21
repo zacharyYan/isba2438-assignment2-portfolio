@@ -1,0 +1,20 @@
+[
+  {
+    "id": "resource-sample-mdn-fetch",
+    "title": "MDN: Fetch API",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+    "category": "Docs",
+    "notes": "Compare with the fetch usage in the blog list page of this portfolio.",
+    "readingStatus": "reading",
+    "createdAt": "2026-11-20T09:00:00.000Z"
+  },
+  {
+    "id": "resource-sample-nextjs-docs",
+    "title": "Next.js App Router Documentation",
+    "url": "https://nextjs.org/docs/app",
+    "category": "Docs",
+    "notes": "Re-read the route handlers and caching chapters before the midterm demo.",
+    "readingStatus": "to-read",
+    "createdAt": "2026-11-20T09:05:00.000Z"
+  }
+]

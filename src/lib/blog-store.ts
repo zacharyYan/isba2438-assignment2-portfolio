@@ -19,6 +19,13 @@ export class DuplicateSlugError extends Error {
   }
 }
 
+export class BlogPostNotFoundError extends Error {
+  constructor(id: string) {
+    super(`blog post not found: ${id}`);
+    this.name = "BlogPostNotFoundError";
+  }
+}
+
 const storageDir = path.join(process.cwd(), "data");
 const storageFile = path.join(storageDir, "blogs.json");
 
@@ -88,6 +95,66 @@ export function getBlogPost(slug: string): Promise<BlogPost | undefined> {
   return readBlogPosts().then((posts) =>
     posts.find((post) => post.slug === slug),
   );
+}
+
+export function getBlogPostById(id: string): Promise<BlogPost | undefined> {
+  return readBlogPosts().then((posts) =>
+    posts.find((post) => post.id === id),
+  );
+}
+
+export function updateBlogPost(
+  id: string,
+  input: {
+    title: string;
+    summary: string;
+    body: string;
+  },
+): Promise<BlogPost> {
+  // Read-check-write runs inside the shared write queue. The slug, id and
+  // createdAt of an existing post are fixed; only title/summary/body change.
+  return enqueueJsonWrite(() => doUpdate(id, input));
+}
+
+async function doUpdate(
+  id: string,
+  input: {
+    title: string;
+    summary: string;
+    body: string;
+  },
+): Promise<BlogPost> {
+  const posts = await readBlogPosts();
+  const index = posts.findIndex((post) => post.id === id);
+  if (index === -1) {
+    throw new BlogPostNotFoundError(id);
+  }
+  const updated: BlogPost = {
+    ...posts[index],
+    title: input.title,
+    summary: input.summary,
+    body: input.body,
+  };
+  posts[index] = updated;
+  await fs.mkdir(storageDir, { recursive: true });
+  await fs.writeFile(storageFile, JSON.stringify(posts, null, 2), "utf8");
+  return updated;
+}
+
+export function deleteBlogPost(id: string): Promise<BlogPost> {
+  return enqueueJsonWrite(() => doDelete(id));
+}
+
+async function doDelete(id: string): Promise<BlogPost> {
+  const posts = await readBlogPosts();
+  const index = posts.findIndex((post) => post.id === id);
+  if (index === -1) {
+    throw new BlogPostNotFoundError(id);
+  }
+  const [removed] = posts.splice(index, 1);
+  await fs.mkdir(storageDir, { recursive: true });
+  await fs.writeFile(storageFile, JSON.stringify(posts, null, 2), "utf8");
+  return removed;
 }
 
 export function createBlogPost(input: {

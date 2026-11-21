@@ -1,36 +1,61 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProjectBySlug, projects } from "@/data/projects";
+import { Suspense } from "react";
+import { getProjectBySlug } from "@/lib/project-store";
 import { getDictionary, hasLocale } from "@/lib/i18n";
 
-export function generateStaticParams() {
-  return projects.map((project) => ({ slug: project.slug }));
-}
-
-export async function generateMetadata({
-  params,
-}: PageProps<"/[lang]/projects/[slug]">): Promise<Metadata> {
-  const { lang, slug } = await params;
-  if (!hasLocale(lang)) return { title: "404" };
-  const project = getProjectBySlug(slug);
-  if (!project) {
-    return { title: getDictionary(lang).projects.notFoundTitle };
-  }
-  return { title: project.title[lang], description: project.summary[lang] };
-}
-
-export default async function ProjectDetailPage({
+// The route has no generateStaticParams: projects are runtime data. Everything
+// request-time (the params read and the store read) lives inside the Suspense
+// boundary so the shell can still prerender, per the Cache Components guide.
+// Deleted slugs resolve to notFound() — no static fallback can resurrect them.
+export default function ProjectDetailPage({
   params,
 }: PageProps<"/[lang]/projects/[slug]">) {
+  return (
+    <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:py-24">
+      <Suspense
+        fallback={
+          <div
+            aria-hidden
+            className="h-4 w-40 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800"
+          />
+        }
+      >
+        <ProjectDetailContent params={params} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function ProjectDetailContent({
+  params,
+}: {
+  params: PageProps<"/[lang]/projects/[slug]">["params"];
+}) {
   const { lang, slug } = await params;
   if (!hasLocale(lang)) notFound();
   const dict = getDictionary(lang);
-  const project = getProjectBySlug(slug);
-  if (!project) notFound();
+
+  let project;
+  try {
+    project = await getProjectBySlug(slug);
+  } catch {
+    return (
+      <p
+        role="alert"
+        className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+      >
+        {dict.projects.storageError}
+      </p>
+    );
+  }
+  if (!project) {
+    notFound();
+  }
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:py-24">
+    <div className="flex flex-col gap-6">
       <article className="flex flex-col gap-6">
         <header className="flex flex-col gap-3">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -87,4 +112,13 @@ export default async function ProjectDetailPage({
       </div>
     </div>
   );
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/[lang]/projects/[slug]">): Promise<Metadata> {
+  const { lang } = await params;
+  if (!hasLocale(lang)) return { title: "404" };
+  const dict = getDictionary(lang);
+  return { title: dict.projects.title, description: dict.siteDescription };
 }

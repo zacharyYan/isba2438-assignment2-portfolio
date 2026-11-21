@@ -1,9 +1,10 @@
 import Link from "next/link";
-import ProjectCard from "@/components/ProjectCard";
-import { getFeaturedProjects } from "@/data/projects";
-import { profile } from "@/data/profile";
-import { getDictionary, hasLocale } from "@/lib/i18n";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import ProjectCard from "@/components/ProjectCard";
+import { profile } from "@/data/profile";
+import { getFeaturedProjects } from "@/lib/project-store";
+import { getDictionary, hasLocale } from "@/lib/i18n";
 
 export default async function HomePage({
   params,
@@ -11,7 +12,6 @@ export default async function HomePage({
   const { lang } = await params;
   if (!hasLocale(lang)) notFound();
   const dict = getDictionary(lang);
-  const featured = getFeaturedProjects();
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-16 sm:py-24">
@@ -50,12 +50,47 @@ export default async function HomePage({
             {dict.home.allProjects}
           </Link>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {featured.map((project) => (
-            <ProjectCard key={project.slug} project={project} lang={lang} />
-          ))}
-        </div>
+        <Suspense
+          fallback={
+            <div
+              aria-hidden
+              className="h-4 w-40 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800"
+            />
+          }
+        >
+          <FeaturedProjects lang={lang} dict={dict} />
+        </Suspense>
       </section>
+    </div>
+  );
+}
+
+async function FeaturedProjects({
+  lang,
+  dict,
+}: {
+  lang: "zh" | "en";
+  dict: ReturnType<typeof getDictionary>;
+}) {
+  let featured;
+  try {
+    featured = await getFeaturedProjects();
+  } catch {
+    return (
+      <p
+        role="alert"
+        className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+      >
+        {dict.projects.storageError}
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {featured.map((project) => (
+        <ProjectCard key={project.slug} project={project} lang={lang} />
+      ))}
     </div>
   );
 }

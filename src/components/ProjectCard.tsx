@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Project } from "@/data/projects";
+import type { Project } from "@/lib/project-types";
 import { getDictionary, type Locale } from "@/lib/i18n";
 
 export default function ProjectCard({

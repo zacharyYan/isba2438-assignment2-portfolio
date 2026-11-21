@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import ProjectCard from "@/components/ProjectCard";
-import { projects } from "@/data/projects";
+import { listProjects } from "@/lib/project-store";
 import { getDictionary, hasLocale } from "@/lib/i18n";
 
 export async function generateMetadata({
@@ -26,15 +27,52 @@ export default async function ProjectsPage({
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           {dict.projects.title}
         </h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
-          {dict.projects.count.replace("{n}", String(projects.length))}
-        </p>
+        <Suspense
+          fallback={
+            <div
+              aria-hidden
+              className="h-4 w-40 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800"
+            />
+          }
+        >
+          <ProjectsListContent lang={lang} dict={dict} />
+        </Suspense>
       </section>
+    </div>
+  );
+}
+
+async function ProjectsListContent({
+  lang,
+  dict,
+}: {
+  lang: "zh" | "en";
+  dict: ReturnType<typeof getDictionary>;
+}) {
+  let projects;
+  try {
+    projects = await listProjects();
+  } catch {
+    return (
+      <p
+        role="alert"
+        className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+      >
+        {dict.projects.storageError}
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-zinc-600 dark:text-zinc-400">
+        {dict.projects.count.replace("{n}", String(projects.length))}
+      </p>
       <div className="grid gap-4 pt-8 sm:grid-cols-2">
         {projects.map((project) => (
           <ProjectCard key={project.slug} project={project} lang={lang} />
         ))}
       </div>
-    </div>
+    </>
   );
 }

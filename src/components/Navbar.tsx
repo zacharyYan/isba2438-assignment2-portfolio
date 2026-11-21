@@ -7,6 +7,9 @@ const navItems = [
   { href: "", key: "home" },
   { href: "/projects", key: "projects" },
   { href: "/blogs", key: "blog" },
+  { href: "/resources", key: "resources" },
+  { href: "/interview-planner", key: "planner" },
+  { href: "/manage", key: "manage" },
   { href: "/about-me", key: "about" },
   { href: "/contact-me", key: "contact" },
 ] as const;
@@ -16,15 +19,15 @@ export default function Navbar({ lang }: { lang: Locale }) {
 
   return (
     <header className="sticky top-0 z-10 border-b border-zinc-200 bg-background/80 backdrop-blur dark:border-zinc-800">
-      <nav className="mx-auto flex h-14 w-full max-w-4xl items-center justify-between px-6">
+      <nav className="mx-auto flex min-h-14 w-full max-w-4xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-6 py-2">
         <Link
           href={`/${lang}`}
           className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
         >
           Zhike Yan
         </Link>
-        <div className="flex items-center gap-5">
-          <ul className="flex items-center gap-5 text-sm text-zinc-600 dark:text-zinc-400">
+        <div className="flex flex-1 items-center justify-end gap-5">
+          <ul className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400">
             {navItems.map((item) => (
               <li key={item.key}>
                 <Link
